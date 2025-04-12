@@ -13,14 +13,14 @@ import {
 } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { useMobile } from '@/hooks/use-mobile';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface SidebarProps {
   activePage: 'dashboard' | 'workouts' | 'exercises' | 'progress' | 'profile' | 'settings' | 'weight';
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ activePage }) => {
-  const isMobile = useMobile();
+  const isMobile = useIsMobile();
   
   const navItems = [
     {
