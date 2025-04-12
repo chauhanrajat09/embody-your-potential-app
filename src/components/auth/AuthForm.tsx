@@ -5,7 +5,9 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { AtSign, Lock, GithubIcon, Mail } from "lucide-react";
+import { AtSign, Lock, AlertCircle } from "lucide-react";
+import { FcGoogle } from 'react-icons/fc';
+import { FaDiscord } from 'react-icons/fa';
 
 interface AuthFormProps {
   onSubmit: (email: string, password: string, isLogin: boolean) => void;
@@ -14,17 +16,41 @@ interface AuthFormProps {
 const AuthForm: React.FC<AuthFormProps> = ({ onSubmit }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [activeTab, setActiveTab] = useState<string>('login');
+  const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
+
+  const validateForm = () => {
+    setError(null);
+    
+    if (!email || !password) {
+      setError("Please fill in all required fields");
+      return false;
+    }
+    
+    if (!email.includes('@')) {
+      setError("Please enter a valid email address");
+      return false;
+    }
+    
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters");
+      return false;
+    }
+    
+    if (activeTab === 'register' && password !== confirmPassword) {
+      setError("Passwords do not match");
+      return false;
+    }
+    
+    return true;
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) {
-      toast({
-        title: "Error",
-        description: "Please fill in all fields",
-        variant: "destructive"
-      });
+    
+    if (!validateForm()) {
       return;
     }
     
@@ -34,8 +60,11 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSubmit }) => {
   const handleSocialLogin = (provider: string) => {
     toast({
       title: `${provider} Login`,
-      description: `${provider} login would be implemented with actual OAuth`,
+      description: `${provider} authentication initiated`,
     });
+    
+    // This would be replaced with actual OAuth logic
+    // For Google/Discord OAuth implementation
   };
 
   return (
@@ -82,6 +111,14 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSubmit }) => {
                   />
                 </div>
               </div>
+
+              {error && (
+                <div className="bg-red-50 text-red-500 px-3 py-2 rounded-md text-sm flex items-center">
+                  <AlertCircle className="h-4 w-4 mr-2" />
+                  {error}
+                </div>
+              )}
+
               <Button className="w-full gradient-purple" type="submit">
                 Log In
               </Button>
@@ -113,6 +150,26 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSubmit }) => {
                   />
                 </div>
               </div>
+              <div className="space-y-2">
+                <div className="flex items-center border rounded-md px-3 py-2">
+                  <Lock className="h-5 w-5 text-gray-400 mr-2" />
+                  <Input 
+                    type="password" 
+                    placeholder="Confirm Password"
+                    className="border-none focus:outline-none focus:ring-0 p-0"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              {error && (
+                <div className="bg-red-50 text-red-500 px-3 py-2 rounded-md text-sm flex items-center">
+                  <AlertCircle className="h-4 w-4 mr-2" />
+                  {error}
+                </div>
+              )}
+
               <Button className="w-full gradient-purple" type="submit">
                 Register
               </Button>
@@ -137,7 +194,7 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSubmit }) => {
               className="flex items-center justify-center"
               onClick={() => handleSocialLogin('Google')}
             >
-              <Mail className="mr-2 h-4 w-4" />
+              <FcGoogle className="mr-2 h-5 w-5" />
               Google
             </Button>
             <Button 
@@ -146,7 +203,7 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSubmit }) => {
               className="flex items-center justify-center"
               onClick={() => handleSocialLogin('Discord')}
             >
-              <GithubIcon className="mr-2 h-4 w-4" />
+              <FaDiscord className="mr-2 h-5 w-5 text-indigo-600" />
               Discord
             </Button>
           </div>
@@ -154,9 +211,9 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSubmit }) => {
       </CardContent>
       <CardFooter className="flex justify-center text-sm">
         {activeTab === 'login' ? (
-          <p>Don't have an account? <span className="text-empowerfit-purple font-semibold cursor-pointer">Register</span></p>
+          <p>Don't have an account? <span onClick={() => setActiveTab('register')} className="text-empowerfit-purple font-semibold cursor-pointer">Register</span></p>
         ) : (
-          <p>Already have an account? <span className="text-empowerfit-purple font-semibold cursor-pointer">Login</span></p>
+          <p>Already have an account? <span onClick={() => setActiveTab('login')} className="text-empowerfit-purple font-semibold cursor-pointer">Login</span></p>
         )}
       </CardFooter>
     </Card>

@@ -12,6 +12,7 @@ import Dashboard from "./pages/Dashboard";
 import Workouts from "./pages/Workouts";
 import Exercises from "./pages/Exercises";
 import Progress from "./pages/Progress";
+import WeightLogger from "./pages/WeightLogger";
 
 // Create a client
 const queryClient = new QueryClient();
@@ -31,6 +32,7 @@ const App: React.FC = () => {
               <Route path="/workouts" element={<Workouts />} />
               <Route path="/exercises" element={<Exercises />} />
               <Route path="/progress" element={<Progress />} />
+              <Route path="/weight" element={<WeightLogger />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>
