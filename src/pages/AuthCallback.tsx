@@ -2,12 +2,24 @@
 import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/use-auth';
 
 const AuthCallback: React.FC = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { isConfigured } = useAuth();
 
   useEffect(() => {
+    if (!isConfigured) {
+      toast({
+        title: "Configuration Error",
+        description: "Supabase is not properly configured. Please set up your environment variables.",
+        variant: "destructive",
+      });
+      navigate('/');
+      return;
+    }
+    
     // The auth state change will be handled by the AuthProvider
     // This is just to handle the redirect after OAuth authentication
     
@@ -17,7 +29,7 @@ const AuthCallback: React.FC = () => {
     });
     
     navigate('/dashboard');
-  }, [navigate, toast]);
+  }, [navigate, toast, isConfigured]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
