@@ -3,14 +3,7 @@ import React, { useMemo } from 'react';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine } from 'recharts';
 import { Card } from "@/components/ui/card";
 import { subDays, format } from 'date-fns';
-
-interface WeightEntry {
-  date: Date;
-  weight: number;
-  bodyFat?: number;
-  timeOfDay: string;
-  notes?: string;
-}
+import { WeightEntry } from '@/services/weight.service';
 
 interface WeightChartProps {
   weights: WeightEntry[];
@@ -26,11 +19,16 @@ const WeightChart: React.FC<WeightChartProps> = ({ weights, period, useKg }) => 
     // Filter weights based on period
     const filteredWeights = weights.filter(w => w.date >= filterDate);
     
+    // Sort by date
+    const sortedWeights = [...filteredWeights].sort((a, b) => 
+      a.date.getTime() - b.date.getTime()
+    );
+    
     // Convert to format suitable for recharts
-    return filteredWeights.map(w => ({
+    return sortedWeights.map(w => ({
       date: format(w.date, 'MMM dd'),
       weight: w.weight,
-      bodyFat: w.bodyFat,
+      bodyFat: w.body_fat,
     }));
   }, [weights, period]);
 
@@ -52,12 +50,26 @@ const WeightChart: React.FC<WeightChartProps> = ({ weights, period, useKg }) => 
     }).filter(Boolean);
   }, [chartData]);
 
-  // Calculate goal weight (example)
-  const goalWeight = 75; // Example goal weight
+  // Calculate goal weight based on their history (example: 5kg less than their highest weight)
+  const goalWeight = useMemo(() => {
+    if (weights.length === 0) return null;
+    
+    const maxWeight = Math.max(...weights.map(w => w.weight));
+    return Math.round(maxWeight - (useKg ? 5 : 10)); // 5kg or 10lb less
+  }, [weights, useKg]);
   
   // Calculate min and max for Y axis
-  const minWeight = Math.min(...chartData.map(d => d.weight)) - 2;
-  const maxWeight = Math.max(...chartData.map(d => d.weight)) + 2;
+  const minWeight = useMemo(() => {
+    return weights.length > 0 
+      ? Math.min(...weights.map(w => w.weight)) - 2 
+      : 0;
+  }, [weights]);
+  
+  const maxWeight = useMemo(() => {
+    return weights.length > 0 
+      ? Math.max(...weights.map(w => w.weight)) + 2 
+      : 100;
+  }, [weights]);
 
   return (
     <Card className="p-4">
@@ -86,7 +98,9 @@ const WeightChart: React.FC<WeightChartProps> = ({ weights, period, useKg }) => 
                 return [value, name];
               }}
             />
-            <ReferenceLine y={goalWeight} label="Goal" stroke="#8884d8" strokeDasharray="3 3" />
+            {goalWeight && (
+              <ReferenceLine y={goalWeight} label="Goal" stroke="#8884d8" strokeDasharray="3 3" />
+            )}
             <Line 
               type="monotone" 
               dataKey="weight" 

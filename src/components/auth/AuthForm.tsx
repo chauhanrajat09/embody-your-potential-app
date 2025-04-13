@@ -8,18 +8,19 @@ import { useToast } from "@/hooks/use-toast";
 import { AtSign, Lock, AlertCircle } from "lucide-react";
 import { FcGoogle } from 'react-icons/fc';
 import { FaDiscord } from 'react-icons/fa';
+import { useAuth } from '@/hooks/use-auth';
+import { useNavigate } from 'react-router-dom';
 
-interface AuthFormProps {
-  onSubmit: (email: string, password: string, isLogin: boolean) => void;
-}
-
-const AuthForm: React.FC<AuthFormProps> = ({ onSubmit }) => {
+const AuthForm: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [activeTab, setActiveTab] = useState<string>('login');
   const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
+  const { signIn, signUp, signInWithGoogle, signInWithDiscord } = useAuth();
+  const navigate = useNavigate();
 
   const validateForm = () => {
     setError(null);
@@ -47,24 +48,61 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSubmit }) => {
     return true;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!validateForm()) {
       return;
     }
+
+    setIsLoading(true);
     
-    onSubmit(email, password, activeTab === 'login');
+    try {
+      if (activeTab === 'login') {
+        const { error } = await signIn(email, password);
+        if (error) throw error;
+        
+        toast({
+          title: "Logged In",
+          description: "Welcome back!",
+        });
+        
+        navigate('/dashboard');
+      } else {
+        const { error } = await signUp(email, password);
+        if (error) throw error;
+        
+        toast({
+          title: "Account Created",
+          description: "Check your email to confirm your account.",
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: "Authentication Error",
+        description: error.message || "Something went wrong",
+        variant: "destructive",
+      });
+      setError(error.message || "Something went wrong");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleSocialLogin = (provider: string) => {
-    toast({
-      title: `${provider} Login`,
-      description: `${provider} authentication initiated`,
-    });
-    
-    // This would be replaced with actual OAuth logic
-    // For Google/Discord OAuth implementation
+  const handleSocialLogin = async (provider: 'google' | 'discord') => {
+    try {
+      if (provider === 'google') {
+        await signInWithGoogle();
+      } else {
+        await signInWithDiscord();
+      }
+    } catch (error: any) {
+      toast({
+        title: `${provider} Login Failed`,
+        description: error.message || "Something went wrong",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -80,7 +118,7 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSubmit }) => {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <Tabs defaultValue="login" onValueChange={setActiveTab}>
+        <Tabs defaultValue="login" value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="grid w-full grid-cols-2 mb-6">
             <TabsTrigger value="login">Login</TabsTrigger>
             <TabsTrigger value="register">Register</TabsTrigger>
@@ -96,6 +134,7 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSubmit }) => {
                     className="border-none focus:outline-none focus:ring-0 p-0"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
+                    disabled={isLoading}
                   />
                 </div>
               </div>
@@ -108,6 +147,7 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSubmit }) => {
                     className="border-none focus:outline-none focus:ring-0 p-0"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
+                    disabled={isLoading}
                   />
                 </div>
               </div>
@@ -119,8 +159,8 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSubmit }) => {
                 </div>
               )}
 
-              <Button className="w-full gradient-purple" type="submit">
-                Log In
+              <Button className="w-full gradient-purple" type="submit" disabled={isLoading}>
+                {isLoading ? "Loading..." : "Log In"}
               </Button>
             </form>
           </TabsContent>
@@ -135,6 +175,7 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSubmit }) => {
                     className="border-none focus:outline-none focus:ring-0 p-0"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
+                    disabled={isLoading}
                   />
                 </div>
               </div>
@@ -147,6 +188,7 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSubmit }) => {
                     className="border-none focus:outline-none focus:ring-0 p-0"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
+                    disabled={isLoading}
                   />
                 </div>
               </div>
@@ -159,6 +201,7 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSubmit }) => {
                     className="border-none focus:outline-none focus:ring-0 p-0"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
+                    disabled={isLoading}
                   />
                 </div>
               </div>
@@ -170,8 +213,8 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSubmit }) => {
                 </div>
               )}
 
-              <Button className="w-full gradient-purple" type="submit">
-                Register
+              <Button className="w-full gradient-purple" type="submit" disabled={isLoading}>
+                {isLoading ? "Creating account..." : "Register"}
               </Button>
             </form>
           </TabsContent>
@@ -192,7 +235,8 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSubmit }) => {
               variant="outline" 
               type="button" 
               className="flex items-center justify-center"
-              onClick={() => handleSocialLogin('Google')}
+              onClick={() => handleSocialLogin('google')}
+              disabled={isLoading}
             >
               <FcGoogle className="mr-2 h-5 w-5" />
               Google
@@ -201,7 +245,8 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSubmit }) => {
               variant="outline" 
               type="button" 
               className="flex items-center justify-center"
-              onClick={() => handleSocialLogin('Discord')}
+              onClick={() => handleSocialLogin('discord')}
+              disabled={isLoading}
             >
               <FaDiscord className="mr-2 h-5 w-5 text-indigo-600" />
               Discord

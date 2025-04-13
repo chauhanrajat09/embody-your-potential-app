@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
@@ -11,17 +11,12 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format } from "date-fns";
-import { CalendarIcon, Download, LineChart, Scale, Settings2 } from 'lucide-react';
+import { CalendarIcon, Download, LineChart, Scale, Settings2, Loader2 } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import WeightChart from './WeightChart';
-
-interface WeightEntry {
-  date: Date;
-  weight: number;
-  bodyFat?: number;
-  timeOfDay: string;
-  notes?: string;
-}
+import { useToast } from '@/hooks/use-toast';
+import { weightService, WeightEntry } from '@/services/weight.service';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 const WeightTracking: React.FC = () => {
   const [date, setDate] = useState<Date>(new Date());
@@ -30,57 +25,82 @@ const WeightTracking: React.FC = () => {
   const [timeOfDay, setTimeOfDay] = useState<string>('morning');
   const [notes, setNotes] = useState<string>('');
   const [useKg, setUseKg] = useState<boolean>(true);
-  const [weights, setWeights] = useState<WeightEntry[]>([
-    { date: new Date(2023, 3, 1), weight: 80, bodyFat: 18, timeOfDay: 'morning' },
-    { date: new Date(2023, 3, 3), weight: 79.5, bodyFat: 17.8, timeOfDay: 'morning' },
-    { date: new Date(2023, 3, 5), weight: 79.2, bodyFat: 17.5, timeOfDay: 'morning' },
-    { date: new Date(2023, 3, 7), weight: 78.8, bodyFat: 17.2, timeOfDay: 'morning' },
-    { date: new Date(2023, 3, 10), weight: 78.5, bodyFat: 17.0, timeOfDay: 'morning' },
-    { date: new Date(2023, 3, 12), weight: 78.2, bodyFat: 16.8, timeOfDay: 'morning' },
-    { date: new Date(2023, 3, 15), weight: 77.8, bodyFat: 16.5, timeOfDay: 'morning' },
-  ]);
   const [chartPeriod, setChartPeriod] = useState<'7' | '30' | '90'>('30');
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  
+  // Query to fetch weight entries
+  const { data: weights = [], isLoading } = useQuery({
+    queryKey: ['weightEntries'],
+    queryFn: weightService.getWeightEntries,
+  });
+
+  // Mutation to add a weight entry
+  const addWeightMutation = useMutation({
+    mutationFn: weightService.addWeightEntry,
+    onSuccess: () => {
+      // Invalidate the query to trigger a refetch
+      queryClient.invalidateQueries({ queryKey: ['weightEntries'] });
+      
+      toast({
+        title: "Weight entry added",
+        description: "Your weight entry has been saved successfully.",
+      });
+      
+      // Reset form fields
+      setWeight('');
+      setBodyFat('');
+      setNotes('');
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to save weight entry",
+        variant: "destructive",
+      });
+    },
+  });
 
   const handleAddWeight = () => {
     if (!weight) return;
     
-    const newWeight = {
+    const newWeight: WeightEntry = {
       date,
       weight: parseFloat(weight),
-      bodyFat: bodyFat ? parseFloat(bodyFat) : undefined,
-      timeOfDay,
+      body_fat: bodyFat ? parseFloat(bodyFat) : undefined,
+      time_of_day: timeOfDay,
       notes
     };
     
-    setWeights([...weights, newWeight]);
-    setWeight('');
-    setBodyFat('');
-    setNotes('');
+    addWeightMutation.mutate(newWeight);
   };
 
-  const handleExportData = () => {
-    // Export to CSV
-    const headers = ['Date', 'Weight', 'Body Fat %', 'Time of Day', 'Notes'];
-    const csvData = weights.map(entry => {
-      return [
-        format(entry.date, 'yyyy-MM-dd'),
-        entry.weight,
-        entry.bodyFat || '',
-        entry.timeOfDay,
-        entry.notes || ''
-      ].join(',');
-    });
-    
-    const csv = [headers.join(','), ...csvData].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `weight-data-${format(new Date(), 'yyyy-MM-dd')}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+  const handleExportData = async () => {
+    try {
+      const csvData = await weightService.exportWeightData();
+      
+      // Create downloadable file
+      const blob = new Blob([csvData], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `weight-data-${format(new Date(), 'yyyy-MM-dd')}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      toast({
+        title: "Data exported",
+        description: "Your weight data has been exported as CSV.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Export failed",
+        description: error.message || "Failed to export weight data",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -174,8 +194,19 @@ const WeightTracking: React.FC = () => {
               />
             </div>
 
-            <Button className="w-full gradient-purple" onClick={handleAddWeight}>
-              Save Weight Entry
+            <Button 
+              className="w-full gradient-purple" 
+              onClick={handleAddWeight}
+              disabled={addWeightMutation.isPending || !weight}
+            >
+              {addWeightMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Save Weight Entry"
+              )}
             </Button>
           </div>
         </CardContent>
@@ -204,33 +235,47 @@ const WeightTracking: React.FC = () => {
           </div>
         </CardHeader>
         <CardContent>
-          <WeightChart weights={weights} period={chartPeriod} useKg={useKg} />
-          
-          <div className="mt-6">
-            <h3 className="font-medium mb-2">Recent Entries</h3>
-            <div className="max-h-64 overflow-y-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr>
-                    <th className="text-left pb-2">Date</th>
-                    <th className="text-left pb-2">Weight</th>
-                    <th className="text-left pb-2">Body Fat</th>
-                    <th className="text-left pb-2">Time</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {weights.slice().reverse().slice(0, 10).map((entry, i) => (
-                    <tr key={i} className="border-t border-gray-100">
-                      <td className="py-2">{format(entry.date, 'MMM dd, yyyy')}</td>
-                      <td className="py-2">{entry.weight} {useKg ? 'kg' : 'lb'}</td>
-                      <td className="py-2">{entry.bodyFat ? `${entry.bodyFat}%` : '-'}</td>
-                      <td className="py-2 capitalize">{entry.timeOfDay}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          {isLoading ? (
+            <div className="flex justify-center items-center h-64">
+              <Loader2 className="h-8 w-8 text-empowerfit-purple animate-spin" />
             </div>
-          </div>
+          ) : (
+            <>
+              <WeightChart weights={weights} period={chartPeriod} useKg={useKg} />
+              
+              <div className="mt-6">
+                <h3 className="font-medium mb-2">Recent Entries</h3>
+                <div className="max-h-64 overflow-y-auto">
+                  {weights.length > 0 ? (
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr>
+                          <th className="text-left pb-2">Date</th>
+                          <th className="text-left pb-2">Weight</th>
+                          <th className="text-left pb-2">Body Fat</th>
+                          <th className="text-left pb-2">Time</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {weights.slice(0, 10).map((entry) => (
+                          <tr key={entry.id} className="border-t border-gray-100">
+                            <td className="py-2">{format(entry.date, 'MMM dd, yyyy')}</td>
+                            <td className="py-2">{entry.weight} {useKg ? 'kg' : 'lb'}</td>
+                            <td className="py-2">{entry.body_fat ? `${entry.body_fat}%` : '-'}</td>
+                            <td className="py-2 capitalize">{entry.time_of_day}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  ) : (
+                    <div className="text-center py-8 text-gray-500">
+                      <p>No weight entries yet. Start by logging your weight.</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
     </div>

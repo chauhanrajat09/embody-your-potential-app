@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, 
   Dumbbell, 
@@ -14,6 +14,8 @@ import {
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/use-auth';
 
 interface SidebarProps {
   activePage: 'dashboard' | 'workouts' | 'exercises' | 'progress' | 'profile' | 'settings' | 'weight';
@@ -21,6 +23,9 @@ interface SidebarProps {
 
 const Sidebar: React.FC<SidebarProps> = ({ activePage }) => {
   const isMobile = useIsMobile();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const { user, signOut } = useAuth();
   
   const navItems = [
     {
@@ -66,6 +71,23 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage }) => {
       active: activePage === 'settings',
     },
   ];
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      navigate('/auth');
+      toast({
+        title: "Signed out",
+        description: "You have been successfully signed out.",
+      });
+    } catch (error) {
+      toast({
+        title: "Sign out failed",
+        description: "Something went wrong. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
 
   if (isMobile) {
     return (
@@ -116,7 +138,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage }) => {
       </div>
       
       <div className="p-4 border-t">
-        <Button variant="ghost" className="flex w-full text-gray-600">
+        <Button variant="ghost" className="flex w-full text-gray-600" onClick={handleSignOut}>
           <LogOut className="h-5 w-5 mr-2" />
           Sign Out
         </Button>
